@@ -30,17 +30,14 @@ async function fetchCoinsFromServer() {
         console.log("Coin find", usdtPairs);
         await finalSubmit(usdtPairs);
     } catch (error) {
-        console.error('Error fetching coins from server:');
+        console.error('Error fetching coins from server:', error);
     }
 }
 
 //This is the final submit for leverage , margin , new order and SL&TP
 const finalSubmit = async (usdtPairs) => {
-
-
     for (const symbol of usdtPairs) {
         await checkFuturePair(symbol)
-
     }
 };
 
@@ -118,15 +115,13 @@ const checkPrice = async (symbol) => {
         let signature = crypto.HmacSHA256(qstring, apiSecret)
         const { data } = await instance.get(`/premiumIndex?${qstring}&signature=${signature}`);
         let currentPrice = await data.markPrice;
-        let entryPrice = Number((currentPrice - (currentPrice * 0.005)).toFixed(
-            tickData >= 2 ? 2 : 1
+        let coinPrice = Number(currentPrice).toFixed(tickData);
+        let entryPrice = Number((coinPrice - (coinPrice * 0.005))).toFixed(tickData);
+        let slprice = Number(entryPrice - (entryPrice * 0.025)).toFixed(tickData);
+        let tpprice = Number(+entryPrice + (+entryPrice * 0.05)).toFixed(tickData)
+        console.log(`${symbol} tick size is ${tickData} and current price is ${currentPrice} and entry price is ${entryPrice} and Sl is ${slprice} and TP is ${tpprice}`);
 
-        ));
-        let slprice = Number(entryPrice - (entryPrice * 0.025));
-        let tpprice = Number(+entryPrice + (+entryPrice * 0.05))
-        // console.log(tickData, entryPrice, currentPrice, "tick data");
-
-        quantity = 100 / entryPrice  //Set quantity here
+        quantity = 150 / entryPrice  //Set quantity here
         return {
             entryPrice, tpprice, slprice
         }
@@ -147,6 +142,7 @@ const getTickSize = async (symbol) => {
             const priceFilter = gotTick.filters.find(filter => filter.filterType === 'PRICE_FILTER');
             if (priceFilter) {
                 const tick = (Number(priceFilter.tickSize.toString().split(".")[1].length))
+                console.log("Original tick size is ", tick);
                 const newTick = tick - 2
                 return newTick;
             } else {
@@ -168,7 +164,7 @@ async function fetchFuturePair() {
         const { data } = await binance(`positionRisk?${qstring}&signature=${signature}`)
         return data;
     } catch (error) {
-        console.error('Error fetching data from API:', error.response.data);
+        console.error('Error fetching data from Futures API:', error.response.data);
         return [];
     }
 }
@@ -233,12 +229,12 @@ const newOrder = async (symbol) => {
 
         let timestamp = new Date().getTime();
         // const queryString = `symbol=${symbol}&side=BUY&positionSide=LONG&type=MARKET&quantity=${quantity.toFixed()}&timestamp=${timestamp}`;
-        const queryString = `symbol=${symbol}&side=BUY&positionSide=LONG&type=LIMIT&quantity=${quantity.toFixed()}&price=${entryPrice}&timeinforce=GTC&timestamp=${timestamp}`;
+        const queryString = `symbol=${symbol}&side=BUY&positionSide=LONG&type=LIMIT&quantity=${Math.floor(quantity)}&price=${entryPrice}&timeinforce=GTC&timestamp=${timestamp}`;
         let signature = crypto.HmacSHA256(queryString, apiSecret)
         let response = await instance.post(`/order?${queryString}&signature=${signature}`)
 
         let stopqt = response.data.origQty;
-        console.log(`Order Placed successfully for ${symbol}`);
+        console.log(`Order Placed successfully for ${symbol} at ${entryPrice}`);
         // await setTrailing(symbol, stopqt);
         await setTP(symbol, tpprice);
         await setSL(symbol, slprice);
@@ -250,18 +246,18 @@ const newOrder = async (symbol) => {
 }
 
 
-//Set tralling SL
-// const setTrailing = async (symbol, stopqt) => {
-//     try {
-//         let timestamp = new Date().getTime();
-//         const queryString = `symbol=${symbol}&callbackRate=2&side=SELL&positionSide=LONG&type=TRAILING_STOP_MARKET&quantity=${stopqt}&timestamp=${timestamp}`;
-//         let signature = crypto.HmacSHA256(queryString, apiSecret)
-//         let response = await instance.post(`/order?${queryString}&signature=${signature}`)
-//         console.log("Trailing successfully added")
-//     } catch (error) {
-//         // console.log(error, "Trailing stop loss error");
-//     }
-// }
+// Set tralling SL
+const setTrailing = async (symbol, stopqt) => {
+    try {
+        let timestamp = new Date().getTime();
+        const queryString = `symbol=${symbol}&callbackRate=3&side=SELL&positionSide=LONG&type=TRAILING_STOP_MARKET&quantity=${stopqt}&timestamp=${timestamp}`;
+        let signature = crypto.HmacSHA256(queryString, apiSecret)
+        let response = await instance.post(`/order?${queryString}&signature=${signature}`)
+        console.log("Trailing successfully added")
+    } catch (error) {
+        console.log(error.response.data, "Trailing stop loss error");
+    }
+}
 
 
 ///set take profit
