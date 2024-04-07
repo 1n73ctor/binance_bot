@@ -268,10 +268,10 @@ const newOrder = async (symbol) => {
 const setTP = async (symbol, tpprice) => {
     try {
         let timestamp = new Date().getTime();
-        const queryString = `symbol=${symbol}&side=SELL&orderId=3746150909&type=TAKE_PROFIT_MARKET&stopPrice=${tpprice}&positionSide=LONG&timeInForce=GTE_GTC&closePosition=true&timestamp=${timestamp}`;
+        const queryString = `symbol=${symbol}&side=SELL&type=TAKE_PROFIT_MARKET&stopPrice=${tpprice}&positionSide=LONG&timeInForce=GTE_GTC&closePosition=true&timestamp=${timestamp}`;
         let signature = crypto.HmacSHA256(queryString, apiSecret)
         let response = await instance.post(`/order?${queryString}&signature=${signature}`)
-        console.log(`TP order successfully added for ${symbol}`)
+        console.log(`TP order successfully added for ${symbol} at ${tpprice}`)
     } catch (error) {
         console.log(`Take profit error in ${symbol}`, error.response.data);
     }
@@ -284,7 +284,7 @@ const setSL = async (symbol, slprice) => {
         const queryString = `symbol=${symbol}&side=SELL&type=STOP_MARKET&stopPrice=${slprice}&positionSide=LONG&timeInForce=GTE_GTC&closePosition=true&timestamp=${timestamp}`;
         let signature = crypto.HmacSHA256(queryString, apiSecret)
         let response = await instance.post(`/order?${queryString}&signature=${signature}`)
-        console.log(`SL order successfully added for ${symbol}`)
+        console.log(`SL order successfully added for ${symbol} at ${slprice}`)
     } catch (error) {
         console.log(`Stop loss error in ${symbol}`, error.response.data);
     }
