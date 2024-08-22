@@ -2,9 +2,9 @@ const axios = require('axios');
 const crypto = require('crypto-js');
 
 // API keys and secret
-const apiKey = 'JPP2bykbIUInBfp9mZ9x2vZEgn6bzjTU8ZkK8rz33PNUlrbeMI1X1H94hVgvkfDm';
-const apiSecret = 'xFpP11oflnLgMiUiIsTG16O5V24SEpQziRRLlEFJ6srY9v4fdnIIblebMJD5gd3m';
-const apiServerURL = 'http://173.249.29.51:3000/api/exchange/price_change?offsetInMinutes=10&percentage=2.2&direction=UP';
+const apiKey = 'UDyA39lNjQVuL1Z2SbPbrETkHYxZ9wQFvV4zWuRisWjp3yaMFyRYrA4MEVDtSGCg';
+const apiSecret = 'vtl3W83LNnGdK1nBng9rapZIc2iFfInndZSpNN6olZDusLPGKhxj6nMPc0OSSSaa';
+const apiServerURL = 'http://173.249.29.51:3000/api/exchange/price_change?offsetInMinutes=15&percentage=2.3&direction=UP';
 
 
 const baseURL = "https://fapi.binance.com/fapi/v1"
@@ -28,7 +28,7 @@ async function fetchCoinsFromServer() {
         const coins = response.data;
         const usdtPairs = coins.filter(coin => coin.endsWith('USDT'));
         console.log("Coin find", usdtPairs);
-        await finalSubmit(usdtPairs);
+        // await finalSubmit(usdtPairs);
     } catch (error) {
         console.error('Error fetching coins from server:', error);
     }
@@ -117,8 +117,8 @@ const checkPrice = async (symbol) => {
         let currentPrice = await data.markPrice;
         let coinPrice = Number(currentPrice).toFixed(tickData);
         let entryPrice = Number((coinPrice - (coinPrice * 0.005))).toFixed(tickData);
-        let slprice = Number(entryPrice - (entryPrice * 0.025)).toFixed(tickData);
-        let tpprice = Number(+entryPrice + (+entryPrice * 0.05)).toFixed(tickData)
+        let slprice = Number(entryPrice - (entryPrice * 0.05)).toFixed(tickData);
+        let tpprice = Number(+entryPrice + (+entryPrice * 0.07)).toFixed(tickData)
         console.log(`${symbol} tick size is ${tickData} and current price is ${currentPrice} and entry price is ${entryPrice} and Sl is ${slprice} and TP is ${tpprice}`);
 
         quantity = 150 / entryPrice  //Set quantity here
@@ -130,6 +130,17 @@ const checkPrice = async (symbol) => {
     }
 }
 
+// const getFundingrate = async (symbol) => {
+//     try {
+//         let response = await instance.get(`/fundingInfo`)
+//         const gotRate = response.data.find(item => item.symbol == symbol);
+//         console.log("Got", Number(gotRate.adjustedFundingRateFloor).toFixed(3));
+
+
+//     } catch (error) {
+//         console.log("Error inside getTick");
+//     }
+// }
 
 //Get Tick size
 const getTickSize = async (symbol) => {
@@ -141,10 +152,10 @@ const getTickSize = async (symbol) => {
         if (gotTick) {
             const priceFilter = gotTick.filters.find(filter => filter.filterType === 'PRICE_FILTER');
             if (priceFilter) {
-                const tick = (Number(priceFilter.tickSize.toString().split(".")[1].length))
-                console.log("Original tick size is ", tick);
-                const newTick = tick - 2
-                return newTick;
+                let trimmedTick = priceFilter.tickSize.replace(/0+$/, '');
+                const tick = (Number(trimmedTick.toString().split(".")[1].length))
+                // console.log("Original tick size is ", tick);
+                return tick;
             } else {
                 return "Tick size not available for this symbol.";
             }
@@ -235,8 +246,9 @@ const newOrder = async (symbol) => {
 
         let stopqt = response.data.origQty;
         console.log(`Order Placed successfully for ${symbol} at ${entryPrice}`);
-        // await setTrailing(symbol, stopqt);
-        await setTP(symbol, tpprice);
+        await setTrailing(symbol, stopqt);
+        // await setTP(symbol, tpprice);
+        await setLimitTP(symbol, tpprice);
         await setSL(symbol, slprice);
 
     } catch (error) {
@@ -261,15 +273,28 @@ const setTrailing = async (symbol, stopqt) => {
 
 
 ///set take profit
-const setTP = async (symbol, tpprice) => {
+// const setTP = async (symbol, tpprice) => {
+//     try {
+//         let timestamp = new Date().getTime();
+//         const queryString = `symbol=${symbol}&side=SELL&type=TAKE_PROFIT_MARKET&stopPrice=${tpprice}&positionSide=LONG&timeInForce=GTE_GTC&closePosition=true&timestamp=${timestamp}`;
+//         let signature = crypto.HmacSHA256(queryString, apiSecret)
+//         let response = await instance.post(`/order?${queryString}&signature=${signature}`)
+//         console.log(`TP order successfully added for ${symbol} at ${tpprice}`)
+//     } catch (error) {
+//         console.log(`Take profit error in ${symbol}`, error.response.data);
+//     }
+// }
+
+//Take profit with tralling
+const setLimitTP = async (symbol, tpprice) => {
     try {
         let timestamp = new Date().getTime();
-        const queryString = `symbol=${symbol}&side=SELL&type=TAKE_PROFIT_MARKET&stopPrice=${tpprice}&positionSide=LONG&timeInForce=GTE_GTC&closePosition=true&timestamp=${timestamp}`;
+        const queryString = `symbol=${symbol}&side=SELL&type=TAKE_PROFIT&quantity=${Math.floor(quantity / 2)}&price=${tpprice}&stopPrice=${tpprice}&positionSide=LONG&timestamp=${timestamp}`;
         let signature = crypto.HmacSHA256(queryString, apiSecret)
         let response = await instance.post(`/order?${queryString}&signature=${signature}`)
-        console.log(`TP order successfully added for ${symbol} at ${tpprice}`)
+        console.log(`Limit TP order successfully added for ${symbol} at ${tpprice}`)
     } catch (error) {
-        console.log(`Take profit error in ${symbol}`, error.response.data);
+        console.log(`Limit Take profit error in ${symbol}`, error.response.data);
     }
 }
 
@@ -290,7 +315,6 @@ const setSL = async (symbol, slprice) => {
 setInterval(() => {
     fetchCoinsFromServer()
 }, 20000);
-
 
 
 
